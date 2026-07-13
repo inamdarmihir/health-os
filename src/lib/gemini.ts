@@ -4,8 +4,8 @@ import { formatMetricContext } from "./local-metrics";
 import { extractJson } from "./json-utils";
 import { MAX_ROUTINE_EXERCISES, buildHealthReportPrompt, COACH_SYSTEM_PROMPT } from "./health-prompts";
 
-const DEFAULT_TEXT_MODEL = "gemini-2.5-flash";
-const DEFAULT_IMAGE_MODEL = "gemini-2.5-flash-image";
+const DEFAULT_TEXT_MODEL = "gemini-3-flash-preview";
+const DEFAULT_IMAGE_MODEL = "gemini-3-pro-image-preview";
 
 export function resolveTextModel() {
   return process.env.GEMINI_TEXT_MODEL || DEFAULT_TEXT_MODEL;
