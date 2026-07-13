@@ -92,6 +92,12 @@ export type ExerciseVideo = {
   url: string;
 };
 
+export type ReferenceArticle = {
+  topic: string;
+  title: string;
+  url: string;
+};
+
 export type ChatMessage = {
   role: "user" | "coach";
   content: string;
@@ -103,7 +109,9 @@ export type HealthOsResponse = {
   agentBrief: string;
   agentStatus: "completed" | "fallback" | "disabled";
   browserStatus: string;
+  references: ReferenceArticle[];
   models: {
+    provider: "openai" | "gemini";
     intelligence: string;
     image: string;
   };

@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import type { ImageInput, ImageKind } from "../lib/health-types";
+import { normalizeImageForUpload } from "../lib/image-utils";
 
 const LABELS: Record<ImageKind, string> = {
   face: "Face",
@@ -21,11 +22,8 @@ export function CaptureSlot({ kind, image, onCapture, onClear }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
-    const buffer = await file.arrayBuffer();
-    let binary = "";
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
-    onCapture({ kind, mimeType: file.type || "image/jpeg", data: btoa(binary) });
+    const { mimeType, data } = await normalizeImageForUpload(file);
+    onCapture({ kind, mimeType, data });
   }
 
   return (

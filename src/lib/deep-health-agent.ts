@@ -3,7 +3,7 @@ import { createCodeInterpreterMiddleware } from "@langchain/quickjs";
 import { HumanMessage } from "@langchain/core/messages";
 import { browserAutomationEnabled, webEvidenceSearchTool } from "./browser-tool";
 import { formatMetricContext } from "./local-metrics";
-import { resolveTextModel } from "./gemini";
+import { activeProvider, intelligenceConfigured, resolveIntelligenceModel } from "./ai";
 import type { HealthOsReport, HealthProfile, LocalMetricEstimate } from "./health-types";
 
 const AGENT_TIMEOUT_MS = Number(process.env.DEEP_AGENT_TIMEOUT_MS) || 90_000;
@@ -43,7 +43,7 @@ export type DeepAgentResult = {
 };
 
 export async function runHealthDeepAgent(profile: HealthProfile, metrics: LocalMetricEstimate, visionReport: HealthOsReport): Promise<DeepAgentResult> {
-  if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
+  if (!intelligenceConfigured()) {
     return { agentBrief: "", status: "disabled" };
   }
 
@@ -63,8 +63,9 @@ export async function runHealthDeepAgent(profile: HealthProfile, metrics: LocalM
         : "Live browser evidence search is currently disabled in this deployment; reason from general knowledge and disclose that."
     ].join("\n");
 
+    const modelPrefix = activeProvider() === "openai" ? "openai" : "google-genai";
     const agent = createDeepAgent({
-      model: `google-genai:${resolveTextModel()}`,
+      model: `${modelPrefix}:${resolveIntelligenceModel()}`,
       systemPrompt: AGENT_SYSTEM_PROMPT,
       subagents: domainSubagents,
       tools: [webEvidenceSearchTool],

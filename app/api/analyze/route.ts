@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { analyzeHealthWithGemini, getGeminiApiKey, resolveImageModel, resolveTextModel } from "../../../src/lib/gemini";
+import { resolveImageModel } from "../../../src/lib/gemini";
+import { activeProvider, analyzeHealth, intelligenceConfigured, resolveIntelligenceModel } from "../../../src/lib/ai";
 import { estimateLocalMetrics } from "../../../src/lib/local-metrics";
 import { runHealthDeepAgent } from "../../../src/lib/deep-health-agent";
 import { browserAutomationEnabled } from "../../../src/lib/browser-tool";
+import { findReferenceArticles } from "../../../src/lib/exa";
 import type { HealthOsResponse, ImageInput } from "../../../src/lib/health-types";
 
 export const runtime = "nodejs";
@@ -37,8 +39,8 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  if (!getGeminiApiKey()) {
-    return NextResponse.json({ error: "GEMINI_API_KEY is not configured on the server." }, { status: 500 });
+  if (!intelligenceConfigured()) {
+    return NextResponse.json({ error: "No AI provider configured. Set OPENAI_API_KEY or GEMINI_API_KEY on the server." }, { status: 500 });
   }
 
   const body = await request.json().catch(() => null);
@@ -51,11 +53,12 @@ export async function POST(request: Request) {
   const metrics = estimateLocalMetrics(profile);
 
   try {
-    const report = await analyzeHealthWithGemini(profile, images as ImageInput[], metrics);
+    const report = await analyzeHealth(profile, images as ImageInput[], metrics);
 
-    const deepAgentResult = runDeepAgent
-      ? await runHealthDeepAgent(profile, metrics, report)
-      : { agentBrief: "", status: "disabled" as const };
+    const [deepAgentResult, references] = await Promise.all([
+      runDeepAgent ? runHealthDeepAgent(profile, metrics, report) : Promise.resolve({ agentBrief: "", status: "disabled" as const }),
+      findReferenceArticles(report.browserResearchNeeded)
+    ]);
 
     const payload: HealthOsResponse = {
       report,
@@ -63,7 +66,8 @@ export async function POST(request: Request) {
       agentBrief: deepAgentResult.agentBrief,
       agentStatus: deepAgentResult.status,
       browserStatus: browserAutomationEnabled() ? "enabled" : "disabled (set ENABLE_AGENT_BROWSER=true with Chrome for Testing provisioned)",
-      models: { intelligence: resolveTextModel(), image: resolveImageModel() }
+      references,
+      models: { provider: activeProvider(), intelligence: resolveIntelligenceModel(), image: resolveImageModel() }
     };
 
     return NextResponse.json(payload);

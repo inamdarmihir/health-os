@@ -122,9 +122,10 @@ export default function Page() {
           Personalized health intelligence, from your <em>camera</em> to a <em>coaching plan</em>
         </h1>
         <p>
-          Capture face, body, and posture photos, log today&apos;s steps. Gemini 2.5 Flash reads the visual signals, a
-          deep-agent crew of posture, body-composition, and recovery specialists dispatches dynamically to build a
-          full workout routine, Nano Banana renders a form visual for every exercise, and your coach is one message away.
+          Capture face, body, and posture photos, log today&apos;s steps. A frontier reasoning + vision model reads the
+          visual signals, a deep-agent crew of posture, body-composition, and recovery specialists dispatches
+          dynamically to build a full workout routine, Nano Banana renders a form visual for every exercise, Exa
+          finds real tutorial videos and reference articles, and your coach is one message away.
         </p>
       </div>
 
@@ -330,6 +331,22 @@ export default function Page() {
                   <h3>Risks &amp; disclaimers</h3>
                   <ul>{result.report.risksAndDisclaimers.map((item, i) => <li key={i}>{item}</li>)}</ul>
                 </div>
+
+                {result.references.length > 0 && (
+                  <div className="section-block">
+                    <h3>Further reading</h3>
+                    <ul>
+                      {result.references.map((ref) => (
+                        <li key={ref.url}>
+                          <a href={ref.url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                            {ref.title}
+                          </a>{" "}
+                          <span className="muted">— {ref.topic}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
 
               <div className="card">
@@ -354,7 +371,7 @@ export default function Page() {
 
               <div className="card">
                 <h2>Deep-agent coaching brief</h2>
-                <p className="muted">Dynamic subagents (posture, body-composition, recovery) via deepagents, gemini-2.5-flash.</p>
+                <p className="muted">Dynamic subagents (posture, body-composition, recovery) via deepagents, {result.models.intelligence}.</p>
                 <div className="brief-box">{result.agentBrief || "Deep agent did not return a brief for this run."}</div>
               </div>
 

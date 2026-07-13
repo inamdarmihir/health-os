@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { chatWithCoach, getGeminiApiKey } from "../../../src/lib/gemini";
+import { chatWithActiveCoach, intelligenceConfigured } from "../../../src/lib/ai";
 import type { HealthOsReport } from "../../../src/lib/health-types";
 
 export const runtime = "nodejs";
@@ -20,8 +20,8 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  if (!getGeminiApiKey()) {
-    return NextResponse.json({ error: "GEMINI_API_KEY is not configured on the server." }, { status: 500 });
+  if (!intelligenceConfigured()) {
+    return NextResponse.json({ error: "No AI provider configured. Set OPENAI_API_KEY or GEMINI_API_KEY on the server." }, { status: 500 });
   }
 
   const body = await request.json().catch(() => null);
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const reply = await chatWithCoach(parsed.data.messages, (parsed.data.report as HealthOsReport | null) ?? null);
+    const reply = await chatWithActiveCoach(parsed.data.messages, (parsed.data.report as HealthOsReport | null) ?? null);
     return NextResponse.json({ reply });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Coach chat failed.";
