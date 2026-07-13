@@ -1,0 +1,33 @@
+{
+  "name": "ai-health-os",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "agent-browser:install": "agent-browser install",
+    "agent-browser:doctor": "agent-browser doctor --offline --quick"
+  },
+  "dependencies": {
+    "@google/genai": "latest",
+    "@langchain/core": "latest",
+    "@langchain/google-genai": "latest",
+    "@langchain/quickjs": "latest",
+    "@sparticuz/chromium": "latest",
+    "agent-browser": "^0.31.1",
+    "deepagents": "^1.10.7",
+    "langchain": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.3"
+  }
+}
