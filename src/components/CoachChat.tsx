@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { generateId } from "../lib/id";
 import type {
   CoachChatMessage,
   CoachJointDraft,
@@ -13,16 +14,21 @@ import type {
   WalkSpotSuggestion,
 } from "../lib/coach-types";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Local display types ──────────────────────────────────────────────────────
+
+/** Exercise suggestion tagged with a client-side id so its Nano Banana visual can be tracked. */
+type DisplayExercise = ExerciseSuggestion & { id: string };
 
 type Suggestions = {
-  exercises: ExerciseSuggestion[];
+  exercises: DisplayExercise[];
   foodSpots: FoodSpotSuggestion[];
   walkSpots: WalkSpotSuggestion[];
 };
 
-// DisplayMessage is local-only; suggestions are stripped before being sent to the API.
+// DisplayMessage is local-only; suggestions never round-trip back to the API.
 type DisplayMessage = CoachChatMessage & { suggestions?: Suggestions };
+
+type VisualState = "loading" | "error" | { mimeType: string; data: string };
 
 type Props = {
   state: CoachState;
@@ -34,50 +40,57 @@ type Props = {
   mealPlanLoading: boolean;
 };
 
-// ─── Suggestion card sub-components ──────────────────────────────────────────
+function cuisineEmoji(cuisine?: string) {
+  const c = (cuisine || "").toLowerCase();
+  if (c.includes("biryani") || c.includes("rice")) return "🍚";
+  if (c.includes("south indian")) return "🥘";
+  if (c.includes("north indian") || c.includes("punjabi")) return "🍛";
+  if (c.includes("chinese") || c.includes("asian")) return "🥡";
+  if (c.includes("pizza") || c.includes("italian")) return "🍕";
+  if (c.includes("cafe") || c.includes("continental") || c.includes("coffee")) return "☕";
+  if (c.includes("bakery") || c.includes("dessert") || c.includes("sweet")) return "🍰";
+  if (c.includes("salad") || c.includes("healthy")) return "🥗";
+  return "🍽️";
+}
 
-function ExerciseCards({
-  exercises,
-}: {
-  exercises: ExerciseSuggestion[];
-}) {
+// ─── Carousel sub-components ──────────────────────────────────────────────────
+
+function ExerciseCarousel({ exercises, visuals }: { exercises: DisplayExercise[]; visuals: Record<string, VisualState> }) {
   if (exercises.length === 0) return null;
   return (
-    <div className="sugg-group">
-      <div className="sugg-label">💪 Exercises for you</div>
-      {exercises.map((ex, i) => (
-        <div key={i} className="sugg-card">
-          <div className="sugg-card-top">
-            <span className="sugg-name">{ex.name}</span>
-            <span className="sugg-meta">{ex.sets}</span>
-          </div>
-          <p className="sugg-reason">{ex.reason}</p>
-          {ex.videoUrl ? (
-            <a
-              className="sugg-action-link"
-              href={ex.videoUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              ▶ Watch tutorial
+    <div className="carousel">
+      <div className="carousel-header">
+        <span className="carousel-icon">💪</span>
+        <span className="carousel-title">Exercises for you</span>
+      </div>
+      <div className="carousel-track">
+        {exercises.map((ex) => {
+          const visual = visuals[ex.id];
+          const href = ex.videoUrl || `https://www.youtube.com/results?search_query=${encodeURIComponent(ex.searchQuery)}`;
+          return (
+            <a key={ex.id} className="ex-card" href={href} target="_blank" rel="noreferrer">
+              {!visual || visual === "loading" ? (
+                <div className="ex-media skeleton" />
+              ) : visual === "error" ? (
+                <div className="ex-media placeholder">🏋️</div>
+              ) : (
+                <img className="ex-media" src={`data:${visual.mimeType};base64,${visual.data}`} alt={ex.name} />
+              )}
+              <div className="ex-card-body">
+                <div className="ex-card-name">{ex.name}</div>
+                <div className="ex-card-sets">{ex.sets}</div>
+                <p className="ex-card-reason">{ex.reason}</p>
+                <span className="ex-card-cta">▶ Watch tutorial</span>
+              </div>
             </a>
-          ) : (
-            <a
-              className="sugg-action-link muted"
-              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.searchQuery)}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Search on YouTube
-            </a>
-          )}
-        </div>
-      ))}
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function FoodSpotCards({
+function FoodCarousel({
   spots,
   onSave,
   savedNames,
@@ -88,40 +101,45 @@ function FoodSpotCards({
 }) {
   if (spots.length === 0) return null;
   return (
-    <div className="sugg-group">
-      <div className="sugg-label">🍽 Food spots near you</div>
-      {spots.map((s, i) => {
-        const alreadySaved = savedNames.has(s.name.toLowerCase());
-        return (
-          <div key={i} className="sugg-card">
-            <div className="sugg-card-top">
-              <span className="sugg-name">{s.name}</span>
-              {s.cuisine && <span className="sugg-meta">{s.cuisine}</span>}
-            </div>
-            <p className="sugg-reason">{s.reason}</p>
-            <div className="sugg-card-actions">
-              {s.url && (
-                <a className="sugg-action-link" href={s.url} target="_blank" rel="noreferrer">
-                  View on Swiggy/Zomato
-                </a>
-              )}
+    <div className="carousel">
+      <div className="carousel-header">
+        <span className="carousel-icon">🍽️</span>
+        <span className="carousel-title">Food spots near you</span>
+      </div>
+      <div className="carousel-track">
+        {spots.map((s, i) => {
+          const saved = savedNames.has(s.name.toLowerCase());
+          return (
+            <div key={i} className="spot-card">
+              <div className="spot-card-header">{cuisineEmoji(s.cuisine)}</div>
               <button
                 type="button"
-                className="sugg-save-btn"
-                disabled={alreadySaved}
+                className={`spot-save-btn${saved ? " saved" : ""}`}
+                disabled={saved}
                 onClick={() => onSave(s)}
+                aria-label={saved ? "Saved" : "Save to your joints"}
               >
-                {alreadySaved ? "Saved ✓" : "+ Save"}
+                {saved ? "✓" : "♡"}
               </button>
+              <div className="spot-card-body">
+                <div className="spot-card-name">{s.name}</div>
+                {s.cuisine && <div className="spot-card-meta">{s.cuisine}</div>}
+                <p className="spot-card-reason">{s.reason}</p>
+                {s.url && (
+                  <a className="spot-card-link" href={s.url} target="_blank" rel="noreferrer">
+                    View menu →
+                  </a>
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function WalkSpotCards({
+function WalkCarousel({
   spots,
   onSave,
   savedNames,
@@ -132,28 +150,35 @@ function WalkSpotCards({
 }) {
   if (spots.length === 0) return null;
   return (
-    <div className="sugg-group">
-      <div className="sugg-label">🚶 Walk spots</div>
-      {spots.map((s, i) => {
-        const alreadySaved = savedNames.has(s.name.toLowerCase());
-        return (
-          <div key={i} className="sugg-card">
-            <div className="sugg-card-top">
-              <span className="sugg-name">{s.name}</span>
-              <span className="sugg-meta">{s.timing}</span>
+    <div className="carousel">
+      <div className="carousel-header">
+        <span className="carousel-icon">🚶</span>
+        <span className="carousel-title">Walk spots</span>
+      </div>
+      <div className="carousel-track">
+        {spots.map((s, i) => {
+          const saved = savedNames.has(s.name.toLowerCase());
+          return (
+            <div key={i} className="spot-card">
+              <div className="spot-card-header">🌳</div>
+              <button
+                type="button"
+                className={`spot-save-btn${saved ? " saved" : ""}`}
+                disabled={saved}
+                onClick={() => onSave(s)}
+                aria-label={saved ? "Saved" : "Save walk spot"}
+              >
+                {saved ? "✓" : "♡"}
+              </button>
+              <div className="spot-card-body">
+                <div className="spot-card-name">{s.name}</div>
+                <div className="spot-card-meta">{s.timing}</div>
+                <p className="spot-card-reason">{s.reason}</p>
+              </div>
             </div>
-            <p className="sugg-reason">{s.reason}</p>
-            <button
-              type="button"
-              className="sugg-save-btn"
-              disabled={alreadySaved}
-              onClick={() => onSave(s)}
-            >
-              {alreadySaved ? "Saved ✓" : "+ Save"}
-            </button>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -175,7 +200,8 @@ export function CoachChat({
   const [started, setStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [readyForMealPlan, setReadyForMealPlan] = useState(false);
-  // Track saved names locally so "Save" buttons toggle to "Saved ✓" instantly.
+  const [visuals, setVisuals] = useState<Record<string, VisualState>>({});
+  // Track saved names locally so "Save" buttons flip to a checkmark instantly.
   const [savedJointNames, setSavedJointNames] = useState<Set<string>>(
     () => new Set(state.joints.map((j) => j.name.toLowerCase())),
   );
@@ -191,9 +217,39 @@ export function CoachChat({
     });
   }, [messages, sending]);
 
-  // Wire messages → API: strip suggestions (display-only) before sending
   function toApiMessages(display: DisplayMessage[]): CoachChatMessage[] {
     return display.map(({ role, content }) => ({ role, content }));
+  }
+
+  async function fetchExerciseVisuals(exercises: DisplayExercise[]) {
+    setVisuals((prev) => {
+      const next = { ...prev };
+      for (const ex of exercises) next[ex.id] = "loading";
+      return next;
+    });
+    try {
+      const response = await fetch("/api/suggestion-visuals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exercises: exercises.map((ex) => ({ id: ex.id, name: ex.name })) }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Visual generation failed.");
+      setVisuals((prev) => {
+        const next = { ...prev };
+        for (const img of (payload.images ?? []) as { id: string; mimeType: string; data: string }[]) {
+          next[img.id] = { mimeType: img.mimeType, data: img.data };
+        }
+        for (const ex of exercises) if (next[ex.id] === "loading") next[ex.id] = "error";
+        return next;
+      });
+    } catch {
+      setVisuals((prev) => {
+        const next = { ...prev };
+        for (const ex of exercises) next[ex.id] = "error";
+        return next;
+      });
+    }
   }
 
   async function sendTurn(nextDisplay: DisplayMessage[]) {
@@ -214,15 +270,17 @@ export function CoachChat({
       if (payload.saveWalkSpot) onSaveWalkSpot(payload.saveWalkSpot);
       if (payload.readyForMealPlan !== undefined) setReadyForMealPlan(Boolean(payload.readyForMealPlan));
 
+      const exercisesWithIds: DisplayExercise[] = ((payload.suggestExercises ?? []) as ExerciseSuggestion[]).map((ex) => ({
+        ...ex,
+        id: generateId(),
+      }));
       const suggestions: Suggestions = {
-        exercises: payload.suggestExercises ?? [],
-        foodSpots: payload.suggestFoodSpots ?? [],
-        walkSpots: payload.suggestWalkSpots ?? [],
+        exercises: exercisesWithIds,
+        foodSpots: (payload.suggestFoodSpots ?? []) as FoodSpotSuggestion[],
+        walkSpots: (payload.suggestWalkSpots ?? []) as WalkSpotSuggestion[],
       };
       const hasSuggestions =
-        suggestions.exercises.length > 0 ||
-        suggestions.foodSpots.length > 0 ||
-        suggestions.walkSpots.length > 0;
+        suggestions.exercises.length > 0 || suggestions.foodSpots.length > 0 || suggestions.walkSpots.length > 0;
 
       const coachMessage: DisplayMessage = {
         role: "coach",
@@ -230,6 +288,8 @@ export function CoachChat({
         suggestions: hasSuggestions ? suggestions : undefined,
       };
       setMessages([...nextDisplay, coachMessage]);
+
+      if (exercisesWithIds.length > 0) void fetchExerciseVisuals(exercisesWithIds);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Coach chat failed.");
     } finally {
@@ -275,12 +335,16 @@ export function CoachChat({
     <div className="coach-shell">
       <header className="coach-header">
         <span className="coach-logo">✦</span>
-        <span className="coach-title">AI Health Coach</span>
+        <div>
+          <div className="coach-title">AI Health Coach</div>
+          <div className="coach-subtitle">Fitness · Food · Recovery</div>
+        </div>
       </header>
 
       <div className="coach-messages" ref={listRef}>
         {messages.length === 0 && !sending && (
           <div className="coach-welcome">
+            <div className="coach-welcome-icon">✦</div>
             <p className="coach-welcome-text">
               Your personal AI coach for health, fitness, and food. Tell me your goals — I'll handle the rest.
             </p>
@@ -291,44 +355,33 @@ export function CoachChat({
         )}
 
         {messages.map((msg, i) => (
-          <div key={i}>
+          <div key={i} className={`msg-row ${msg.role}`}>
             <div className={`bubble ${msg.role}`}>{msg.content}</div>
             {msg.role === "coach" && msg.suggestions && (
-              <div className="sugg-tray">
-                <ExerciseCards exercises={msg.suggestions.exercises} />
-                <FoodSpotCards
-                  spots={msg.suggestions.foodSpots}
-                  onSave={saveJoint}
-                  savedNames={savedJointNames}
-                />
-                <WalkSpotCards
-                  spots={msg.suggestions.walkSpots}
-                  onSave={saveWalkSpot}
-                  savedNames={savedWalkNames}
-                />
-              </div>
+              <>
+                <ExerciseCarousel exercises={msg.suggestions.exercises} visuals={visuals} />
+                <FoodCarousel spots={msg.suggestions.foodSpots} onSave={saveJoint} savedNames={savedJointNames} />
+                <WalkCarousel spots={msg.suggestions.walkSpots} onSave={saveWalkSpot} savedNames={savedWalkNames} />
+              </>
             )}
           </div>
         ))}
 
         {sending && (
-          <div className="bubble coach typing">
-            <span className="dot" />
-            <span className="dot" />
-            <span className="dot" />
+          <div className="msg-row coach">
+            <div className="bubble coach typing">
+              <span className="dot" />
+              <span className="dot" />
+              <span className="dot" />
+            </div>
           </div>
         )}
       </div>
 
       {readyForMealPlan && (
         <div className="coach-actions">
-          <button
-            type="button"
-            className="secondary"
-            disabled={mealPlanLoading}
-            onClick={onRunMealPlan}
-          >
-            {mealPlanLoading ? "Planning…" : "Generate meal plan"}
+          <button type="button" className="secondary" disabled={mealPlanLoading} onClick={onRunMealPlan}>
+            {mealPlanLoading ? "Planning…" : "🍱 Generate meal plan"}
           </button>
         </div>
       )}

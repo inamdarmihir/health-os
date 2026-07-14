@@ -52,27 +52,45 @@ main.coach-page {
   overflow: hidden;
 }
 
-/* ─── Header ─────────────────────────────────────────────────────── */
+/* ─── Header (frosted glass) ────────────────────────────────────── */
 
 .coach-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 18px 10px;
+  padding: 12px 18px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  background: rgba(17, 17, 17, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 2;
 }
 
 .coach-logo {
-  font-size: 18px;
-  color: var(--accent);
-  line-height: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+  color: #0a0a00;
 }
 
 .coach-title {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.coach-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.3;
 }
 
 /* ─── Message list ───────────────────────────────────────────────── */
@@ -83,10 +101,36 @@ main.coach-page {
   -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 14px 10px;
-  /* Smooth overscroll without revealing the bare bg */
+  gap: 14px;
+  padding: 18px 14px 12px;
   overscroll-behavior: contain;
+}
+
+.msg-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  animation: riseIn 0.28s ease both;
+}
+
+.msg-row.user {
+  align-items: flex-end;
+}
+
+.msg-row .carousel {
+  align-self: stretch;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ─── Welcome state ──────────────────────────────────────────────── */
@@ -96,10 +140,23 @@ main.coach-page {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  gap: 18px;
   flex: 1;
   text-align: center;
   padding: 32px 24px;
+}
+
+.coach-welcome-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+  color: #0a0a00;
+  box-shadow: 0 14px 32px rgba(255, 212, 0, 0.22);
 }
 
 .coach-welcome-text {
@@ -126,17 +183,16 @@ main.coach-page {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .bubble.user {
-  align-self: flex-end;
   background: var(--accent);
   color: #0a0a00;
   border-bottom-right-radius: 5px;
 }
 
 .bubble.coach {
-  align-self: flex-start;
   background: var(--panel-2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -160,15 +216,27 @@ main.coach-page {
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-.dot:nth-child(2) { animation-delay: 0.2s; }
-.dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes pulse {
-  0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
-  40%            { opacity: 1;   transform: scale(1);    }
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
 }
 
-/* ─── CTA action buttons (analysis / meal plan) ──────────────────── */
+@keyframes pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ─── CTA action buttons (meal plan) ─────────────────────────────── */
 
 .coach-actions {
   display: flex;
@@ -177,6 +245,10 @@ main.coach-page {
   padding: 10px 14px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.coach-actions button.secondary {
+  border-radius: 999px;
 }
 
 /* ─── Error bar ──────────────────────────────────────────────────── */
@@ -189,7 +261,7 @@ main.coach-page {
   flex-shrink: 0;
 }
 
-/* ─── Input bar ──────────────────────────────────────────────────── */
+/* ─── Input bar (frosted glass) ──────────────────────────────────── */
 
 .coach-input-bar {
   display: flex;
@@ -199,7 +271,9 @@ main.coach-page {
   /* push above iPhone home bar */
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
-  background: var(--panel);
+  background: rgba(17, 17, 17, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   flex-shrink: 0;
 }
 
@@ -300,112 +374,245 @@ button:not(:disabled):hover {
   margin-top: 14px;
 }
 
-/* ─── Suggestion tray ────────────────────────────────────────────── */
+/* ─── Suggestion carousels ───────────────────────────────────────── */
 
-.sugg-tray {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 6px;
-  margin-left: 4px;
-  margin-right: 4px;
-}
-
-.sugg-group {
+.carousel {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
 }
 
-.sugg-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+.carousel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding-left: 2px;
 }
 
-.sugg-card {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px 14px;
+.carousel-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: rgba(255, 212, 0, 0.12);
+  flex-shrink: 0;
 }
 
-.sugg-card-top {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.sugg-name {
-  font-size: 14px;
+.carousel-title {
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--text);
 }
 
-.sugg-meta {
-  font-size: 11px;
-  color: var(--muted);
+.carousel-track {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding: 2px 2px 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
-.sugg-reason {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.45;
+.carousel-track::-webkit-scrollbar {
+  display: none;
 }
 
-.sugg-card-actions {
+/* ─── Exercise card ───────────────────────────────────────────────── */
+
+.ex-card {
+  flex: 0 0 148px;
+  scroll-snap-align: start;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.ex-card:active {
+  transform: scale(0.97);
+}
+
+.ex-card:hover {
+  border-color: var(--accent-dim);
+}
+
+.ex-media {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  background: var(--panel);
+}
+
+.ex-media.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(100deg, var(--panel) 30%, #232300 50%, var(--panel) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.ex-media.placeholder {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 4px;
-  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 26px;
+  color: var(--muted);
 }
 
-.sugg-action-link {
-  font-size: 13px;
-  font-weight: 600;
+.ex-card-body {
+  padding: 9px 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ex-card-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.ex-card-sets {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.ex-card-reason {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ex-card-cta {
+  margin-top: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ─── Food / walk spot card ───────────────────────────────────────── */
+
+.spot-card {
+  position: relative;
+  flex: 0 0 172px;
+  scroll-snap-align: start;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.spot-card-header {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: linear-gradient(135deg, rgba(255, 212, 0, 0.22), rgba(184, 154, 0, 0.08));
+}
+
+.spot-save-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 0, 0.45);
+  backdrop-filter: blur(4px);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.spot-save-btn.saved {
+  background: var(--accent);
+  color: #0a0a00;
+}
+
+.spot-save-btn:active {
+  transform: scale(0.9);
+}
+
+.spot-card-body {
+  padding: 9px 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.spot-card-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.spot-card-meta {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.spot-card-reason {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.spot-card-link {
+  margin-top: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
   color: var(--accent);
   text-decoration: none;
 }
 
-.sugg-action-link:hover {
+.spot-card-link:hover {
   text-decoration: underline;
-}
-
-.sugg-action-link.muted {
-  color: var(--muted);
-}
-
-.sugg-save-btn {
-  margin-left: auto;
-  padding: 6px 12px;
-  min-height: 32px;
-  font-size: 12px;
-  border-radius: 999px;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-  cursor: pointer;
-  font-weight: 700;
-  transition: background 0.15s, color 0.15s;
-}
-
-.sugg-save-btn:not(:disabled):hover {
-  background: var(--accent);
-  color: #0a0a00;
-  border-color: var(--accent);
-}
-
-.sugg-save-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-  color: var(--muted);
 }
