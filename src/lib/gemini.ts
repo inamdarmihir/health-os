@@ -26,7 +26,6 @@ export function requireGeminiClient() {
   if (!apiKey) {
     throw new Error("Missing GEMINI_API_KEY. Add it in Vercel Project Settings or .env.local.");
   }
-  process.env.GOOGLE_API_KEY ||= apiKey;
   return new GoogleGenAI({ apiKey });
 }
 
@@ -40,11 +39,13 @@ export async function analyzeHealthWithGemini(profile: HealthProfile, images: Im
     config: {
       responseMimeType: "application/json",
       temperature: 0.25,
-      maxOutputTokens: 6144
+      maxOutputTokens: 12288,
+      thinkingConfig: { thinkingBudget: 0 }
     }
   });
 
-  const report = extractJson(response.text ?? "") as HealthOsReport;
+  const finishReason = response.candidates?.[0]?.finishReason;
+  const report = extractJson(response.text ?? "", finishReason) as HealthOsReport;
   report.routine.exercises = report.routine.exercises.slice(0, MAX_ROUTINE_EXERCISES);
   return report;
 }
@@ -128,9 +129,11 @@ export async function planMealsWithGemini(
     config: {
       responseMimeType: "application/json",
       temperature: 0.4,
-      maxOutputTokens: 2048
+      maxOutputTokens: 4096,
+      thinkingConfig: { thinkingBudget: 0 }
     }
   });
 
-  return extractJson(response.text ?? "") as Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">;
+  const finishReason = response.candidates?.[0]?.finishReason;
+  return extractJson(response.text ?? "", finishReason) as Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">;
 }
