@@ -1,3 +1,5 @@
+import type { FoodJoint, FoodProfile, FoodSearchHit, MealLogEntry, MealPlan, WalkSpot } from "./food-types";
+import { buildMealPlanPrompt } from "./food-prompts";
 import { GoogleGenAI } from "@google/genai";
 import type { ChatMessage, ExerciseVisual, HealthOsReport, HealthProfile, ImageInput, LocalMetricEstimate, RoutineExercise } from "./health-types";
 import { formatMetricContext } from "./local-metrics";
@@ -107,4 +109,28 @@ export async function chatWithCoach(messages: ChatMessage[], reportContext: Heal
   });
 
   return response.text ?? "I couldn't generate a response — try asking again.";
+}
+
+export async function planMealsWithGemini(
+  profile: FoodProfile,
+  joints: FoodJoint[],
+  walkSpots: WalkSpot[],
+  recentLog: MealLogEntry[],
+  searchHits: FoodSearchHit[],
+  targetDate: string
+): Promise<Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">> {
+  const ai = requireGeminiClient();
+  const prompt = buildMealPlanPrompt(profile, joints, walkSpots, recentLog, searchHits, targetDate);
+
+  const response = await ai.models.generateContent({
+    model: resolveTextModel(),
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: {
+      responseMimeType: "application/json",
+      temperature: 0.4,
+      maxOutputTokens: 2048
+    }
+  });
+
+  return extractJson(response.text ?? "") as Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">;
 }

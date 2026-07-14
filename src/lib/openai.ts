@@ -1,3 +1,5 @@
+import type { FoodJoint, FoodProfile, FoodSearchHit, MealLogEntry, MealPlan, WalkSpot } from "./food-types";
+import { buildMealPlanPrompt, FOOD_PLAN_SYSTEM_PROMPT } from "./food-prompts";
 import OpenAI from "openai";
 import type { ChatMessage, HealthOsReport, HealthProfile, ImageInput, LocalMetricEstimate } from "./health-types";
 import { extractJson } from "./json-utils";
@@ -68,4 +70,27 @@ export async function chatWithOpenAiCoach(messages: ChatMessage[], reportContext
   });
 
   return response.output_text || "I couldn't generate a response — try asking again.";
+}
+
+export async function planMealsWithOpenAi(
+  profile: FoodProfile,
+  joints: FoodJoint[],
+  walkSpots: WalkSpot[],
+  recentLog: MealLogEntry[],
+  searchHits: FoodSearchHit[],
+  targetDate: string
+): Promise<Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">> {
+  const client = requireOpenAiClient();
+  const prompt = buildMealPlanPrompt(profile, joints, walkSpots, recentLog, searchHits, targetDate);
+
+  const response = await client.responses.create({
+    model: resolveOpenAiTextModel(),
+    instructions: FOOD_PLAN_SYSTEM_PROMPT,
+    input: [{ role: "user", content: prompt }],
+    reasoning: { effort: "low" },
+    text: { format: { type: "json_object" } },
+    max_output_tokens: 2048
+  });
+
+  return extractJson(response.output_text ?? "") as Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">;
 }

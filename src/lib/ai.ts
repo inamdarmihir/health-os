@@ -1,6 +1,7 @@
 import type { ChatMessage, HealthOsReport, HealthProfile, ImageInput, LocalMetricEstimate } from "./health-types";
-import { analyzeHealthWithGemini, chatWithCoach as chatWithGeminiCoach, getGeminiApiKey, resolveTextModel as resolveGeminiTextModel } from "./gemini";
-import { analyzeHealthWithOpenAi, chatWithOpenAiCoach, getOpenAiApiKey, resolveOpenAiTextModel } from "./openai";
+import type { FoodJoint, FoodProfile, FoodSearchHit, MealLogEntry, MealPlan, WalkSpot } from "./food-types";
+import { analyzeHealthWithGemini, chatWithCoach as chatWithGeminiCoach, getGeminiApiKey, planMealsWithGemini, resolveTextModel as resolveGeminiTextModel } from "./gemini";
+import { analyzeHealthWithOpenAi, chatWithOpenAiCoach, getOpenAiApiKey, planMealsWithOpenAi, resolveOpenAiTextModel } from "./openai";
 
 export type AiProvider = "openai" | "gemini";
 
@@ -28,4 +29,17 @@ export function chatWithActiveCoach(messages: ChatMessage[], reportContext: Heal
   return activeProvider() === "openai"
     ? chatWithOpenAiCoach(messages, reportContext)
     : chatWithGeminiCoach(messages, reportContext);
+}
+
+export function planMeals(
+  profile: FoodProfile,
+  joints: FoodJoint[],
+  walkSpots: WalkSpot[],
+  recentLog: MealLogEntry[],
+  searchHits: FoodSearchHit[],
+  targetDate: string
+): Promise<Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">> {
+  return activeProvider() === "openai"
+    ? planMealsWithOpenAi(profile, joints, walkSpots, recentLog, searchHits, targetDate)
+    : planMealsWithGemini(profile, joints, walkSpots, recentLog, searchHits, targetDate);
 }

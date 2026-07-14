@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CaptureSlot } from "../src/components/CaptureSlot";
 import { ExerciseCard } from "../src/components/ExerciseCard";
 import { ChatCoach } from "../src/components/ChatCoach";
@@ -126,6 +127,11 @@ export default function Page() {
           visual signals, a deep-agent crew of posture, body-composition, and recovery specialists dispatches
           dynamically to build a full workout routine, Nano Banana renders a form visual for every exercise, Exa
           finds real tutorial videos and reference articles, and your coach is one message away.
+        </p>
+        <p style={{ marginTop: 4 }}>
+          <Link href="/food" style={{ color: "var(--accent)", fontSize: 13 }}>
+            Log meals &amp; plan today&apos;s orders on a budget →
+          </Link>
         </p>
       </div>
 

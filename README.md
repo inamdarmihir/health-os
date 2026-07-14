@@ -9,6 +9,12 @@ gets a Nano Banana form-visual and a real YouTube tutorial link via Exa
 search), and a chat coach grounded in your report. Not a diagnostic tool —
 every report carries clinician-referral language for concerning findings.
 
+A second surface, **`/food`**, is a daily meal planner: log what you eat,
+save your preferred Swiggy/Zomato joints and walk spots, and get a full
+breakfast-to-dinner order plan that fits a ₹500-₹700 (configurable) daily
+budget — grounded in live Swiggy/Zomato search evidence where available and
+varied against your recent log.
+
 ## Architecture
 
 - **Next.js 15 App Router**, TypeScript, no client framework beyond React.
@@ -41,6 +47,22 @@ every report carries clinician-referral language for concerning findings.
 - `src/lib/browser-tool.ts` — a LangChain tool (`web_evidence_search`) that
   shells out to Vercel's `agent-browser` CLI so subagents can ground guidance
   in live pages. Off by default (see below).
+- `POST /api/meal-plan` — generates a single day's order plan. Looks up
+  Swiggy/Zomato search evidence for your saved joints (and general nearby
+  budget options) via Exa (`src/lib/food-search.ts`), then asks the active
+  provider (`src/lib/food-prompts.ts` + `planMeals` in `src/lib/ai.ts`) for a
+  structured `meals[]` plan whose costs sum inside your budget range, plus one
+  walk recommendation. Degrades to reasoning from general knowledge (and says
+  so) when `EXA_API_KEY` is unset.
+
+### Meal planner data model
+
+There is no server-side database: `/food` persists your profile, joints,
+walk spots, and meal log to the browser's `localStorage`
+(`src/lib/use-local-storage.ts`) under `aihealthos.food.*` keys. Nothing is
+sent to the server except the payload of an explicit "Plan today's meals"
+request. Clearing site data or switching browsers/devices loses the log —
+there's no account system to sync it, by design (single-user, no auth).
 
 ## Setup
 
