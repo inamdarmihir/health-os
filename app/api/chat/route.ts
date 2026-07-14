@@ -60,7 +60,7 @@ const requestSchema = z.object({
 
 export async function POST(request: Request) {
   if (!intelligenceConfigured()) {
-    return NextResponse.json({ error: "No AI provider configured. Set OPENAI_API_KEY or GEMINI_API_KEY on the server." }, { status: 500 });
+    return NextResponse.json({ error: "No AI provider configured. Set GEMINI_API_KEY in your environment." }, { status: 500 });
   }
 
   const body = await request.json().catch(() => null);

@@ -63,7 +63,7 @@ export async function runHealthDeepAgent(profile: HealthProfile, metrics: LocalM
         : "Live browser evidence search is currently disabled in this deployment; reason from general knowledge and disclose that."
     ].join("\n");
 
-    const modelPrefix = activeProvider() === "openai" ? "openai" : "google-genai";
+    const modelPrefix = "google-genai";
     const agent = createDeepAgent({
       model: `${modelPrefix}:${resolveIntelligenceModel()}`,
       systemPrompt: AGENT_SYSTEM_PROMPT,

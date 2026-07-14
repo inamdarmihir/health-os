@@ -1,34 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { CaptureSlot } from "../src/components/CaptureSlot";
-import { ExerciseCard } from "../src/components/ExerciseCard";
 import { CoachChat } from "../src/components/CoachChat";
-import { JointManager } from "../src/components/food/JointManager";
-import { WalkSpotManager } from "../src/components/food/WalkSpotManager";
-import { MealLogger } from "../src/components/food/MealLogger";
-import { MealPlanCard } from "../src/components/food/MealPlanCard";
 import { useLocalStorage } from "../src/lib/use-local-storage";
 import { generateId } from "../src/lib/id";
-import type { ExerciseVideo, ExerciseVisual, HealthOsResponse, HealthProfile, ImageInput, ImageKind } from "../src/lib/health-types";
+import type { HealthProfile, ImageInput, ImageKind } from "../src/lib/health-types";
 import type {
-  DiscoveredFoodOutlet,
   FoodJoint,
   FoodProfile,
   MealLogEntry,
   MealPlanResponse,
-  WalkSpot
+  WalkSpot,
 } from "../src/lib/food-types";
-import type { CoachAttachment, CoachJointDraft, CoachMealLogDraft, CoachProfile, CoachState, CoachWalkSpotDraft } from "../src/lib/coach-types";
-
-const IMAGE_KINDS: ImageKind[] = ["face", "frontBody", "sideBody", "posture"];
+import type {
+  CoachAttachment,
+  CoachJointDraft,
+  CoachMealLogDraft,
+  CoachProfile,
+  CoachState,
+  CoachWalkSpotDraft,
+} from "../src/lib/coach-types";
 
 const EMPTY_PROFILE: HealthProfile = {
   sex: "",
   trainingGoal: "",
   recoverySignals: "",
   constraints: "",
-  browserGoal: ""
+  browserGoal: "",
 };
 
 const EMPTY_FOOD_PROFILE: FoodProfile = {
@@ -37,12 +35,8 @@ const EMPTY_FOOD_PROFILE: FoodProfile = {
   workLocation: "",
   dietaryPrefs: "",
   budgetMinRs: 500,
-  budgetMaxRs: 700
+  budgetMaxRs: 700,
 };
-
-function scorePercent(score: number) {
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -52,118 +46,48 @@ export default function Page() {
   const [images, setImages] = useState<Partial<Record<ImageKind, ImageInput>>>({});
   const [profile, setProfile] = useState<HealthProfile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(false);
-  const [visualLoading, setVisualLoading] = useState(false);
-  const [routineVisualsLoading, setRoutineVisualsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<HealthOsResponse | null>(null);
-  const [visual, setVisual] = useState<{ mimeType: string; data: string } | null>(null);
-  const [exerciseVisuals, setExerciseVisuals] = useState<Record<string, ExerciseVisual>>({});
-  const [exerciseVideos, setExerciseVideos] = useState<Record<string, ExerciseVideo>>({});
+  const [mealPlanLoading, setMealPlanLoading] = useState(false);
+  const [mealPlanResponse, setMealPlanResponse] = useState<MealPlanResponse | null>(null);
 
-  const [foodProfile, setFoodProfile] = useLocalStorage<FoodProfile>("aihealthos.food.profile", EMPTY_FOOD_PROFILE);
+  const [foodProfile, setFoodProfile] = useLocalStorage<FoodProfile>(
+    "aihealthos.food.profile",
+    EMPTY_FOOD_PROFILE,
+  );
   const [joints, setJoints] = useLocalStorage<FoodJoint[]>("aihealthos.food.joints", []);
   const [walkSpots, setWalkSpots] = useLocalStorage<WalkSpot[]>("aihealthos.food.walkSpots", []);
   const [mealLog, setMealLog] = useLocalStorage<MealLogEntry[]>("aihealthos.food.log", []);
-  const [mealPlanResponse, setMealPlanResponse] = useState<MealPlanResponse | null>(null);
-  const [mealPlanLoading, setMealPlanLoading] = useState(false);
-  const [mealPlanError, setMealPlanError] = useState<string | null>(null);
-
-  const capturedCount = Object.keys(images).length;
-
-  async function fetchRoutineVisuals(response: HealthOsResponse) {
-    const exercises = response.report.routine.exercises.map((exercise) => ({
-      id: exercise.id,
-      name: exercise.name,
-      category: exercise.category,
-      imagePrompt: exercise.imagePrompt
-    }));
-    if (exercises.length === 0) return;
-    setRoutineVisualsLoading(true);
-    try {
-      const visualsResponse = await fetch("/api/routine-visuals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ exercises })
-      });
-      const payload = await visualsResponse.json();
-      if (!visualsResponse.ok) throw new Error(payload.error || "Routine visual generation failed.");
-      const visualsById: Record<string, ExerciseVisual> = {};
-      for (const image of payload.images as ExerciseVisual[]) visualsById[image.id] = image;
-      setExerciseVisuals(visualsById);
-      const videosById: Record<string, ExerciseVideo> = {};
-      for (const video of (payload.videos as ExerciseVideo[]) ?? []) videosById[video.id] = video;
-      setExerciseVideos(videosById);
-    } catch {
-      // Non-fatal: exercise cards fall back to a placeholder when a visual or video is missing.
-    } finally {
-      setRoutineVisualsLoading(false);
-    }
-  }
 
   async function handleAnalyze() {
-    if (capturedCount === 0) {
-      setError("Capture at least a face photo before analyzing.");
-      return;
-    }
+    if (Object.keys(images).length === 0) return;
     setLoading(true);
-    setError(null);
-    setResult(null);
-    setVisual(null);
-    setExerciseVisuals({});
-    setExerciseVideos({});
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, images: Object.values(images), runDeepAgent: true })
+        body: JSON.stringify({ profile, images: Object.values(images), runDeepAgent: true }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Analysis failed.");
-      const typedPayload = payload as HealthOsResponse;
-      setResult(typedPayload);
-      void fetchRoutineVisuals(typedPayload);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed.");
+      await response.json();
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleGenerateVisual() {
-    if (!result) return;
-    setVisualLoading(true);
-    setError(null);
-    try {
-      const reference = images.face || images.posture || Object.values(images)[0];
-      const response = await fetch("/api/visual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: result.report.generatedVisualPrompt, reference })
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Visual generation failed.");
-      setVisual(payload.image);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Visual generation failed.");
-    } finally {
-      setVisualLoading(false);
-    }
-  }
-
   async function handlePlanMeals() {
     setMealPlanLoading(true);
-    setMealPlanError(null);
     try {
       const response = await fetch("/api/meal-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: foodProfile, joints, walkSpots, recentLog: mealLog, date: todayIso() })
+        body: JSON.stringify({
+          profile: foodProfile,
+          joints,
+          walkSpots,
+          recentLog: mealLog,
+          date: todayIso(),
+        }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Meal plan generation failed.");
-      setMealPlanResponse(payload as MealPlanResponse);
-    } catch (err) {
-      setMealPlanError(err instanceof Error ? err.message : "Meal plan generation failed.");
+      if (response.ok) setMealPlanResponse(payload as MealPlanResponse);
     } finally {
       setMealPlanLoading(false);
     }
@@ -184,343 +108,37 @@ export default function Page() {
   }
 
   function handleSaveJoint(draft: CoachJointDraft) {
-    const joint: FoodJoint = { id: generateId(), ...draft };
-    setJoints((prev) => [...prev, joint]);
+    setJoints((prev) => [...prev, { id: generateId(), ...draft }]);
   }
 
   function handleSaveWalkSpot(draft: CoachWalkSpotDraft) {
-    const spot: WalkSpot = { id: generateId(), ...draft };
-    setWalkSpots((prev) => [...prev, spot]);
-  }
-
-  function handleSaveOutlet(outlet: DiscoveredFoodOutlet) {
-    const joint: FoodJoint = {
-      id: generateId(),
-      name: outlet.name,
-      area: outlet.area || "",
-      cuisine: outlet.cuisine,
-      notes: outlet.snippet
-    };
-    setJoints((prev) => [...prev, joint]);
+    setWalkSpots((prev) => [...prev, { id: generateId(), ...draft }]);
   }
 
   const coachState: CoachState = {
     profile: { ...profile, ...foodProfile },
     capturedImageKinds: Object.keys(images) as ImageKind[],
-    joints: joints.map((joint) => ({ name: joint.name, area: joint.area })),
-    walkSpots: walkSpots.map((spot) => ({ name: spot.name, area: spot.area })),
-    recentMealLog: mealLog.map((entry) => ({ date: entry.date, mealType: entry.mealType, item: entry.item })),
-    report: result?.report ?? null,
-    mealPlan: mealPlanResponse?.plan ?? null
+    joints: joints.map((j) => ({ name: j.name, area: j.area })),
+    walkSpots: walkSpots.map((s) => ({ name: s.name, area: s.area })),
+    recentMealLog: mealLog.map((e) => ({ date: e.date, mealType: e.mealType, item: e.item })),
+    report: null,
+    mealPlan: mealPlanResponse?.plan ?? null,
   };
 
   return (
-    <main>
-      <div className="hero">
-        <span className="hero-badge">AI Health OS</span>
-        <h1>
-          Personalized health intelligence, from your <em>camera</em> to a <em>coaching plan</em>
-        </h1>
-        <p>
-          Capture face, body, and posture photos, log today&apos;s steps. A frontier reasoning + vision model reads the
-          visual signals, a deep-agent crew of posture, body-composition, and recovery specialists dispatches
-          dynamically to build a full workout routine, Nano Banana renders a form visual for every exercise, Exa
-          finds real tutorial videos and reference articles, and your coach is one message away — the same chat also
-          logs meals, saves joints and walk spots, and plans today&apos;s budget-aware orders.
-        </p>
-      </div>
-
-      <div className="grid">
-        <section>
-          <div className="card">
-            <h2>1. Capture</h2>
-            <div className="capture-grid">
-              {IMAGE_KINDS.map((kind) => (
-                <CaptureSlot
-                  key={kind}
-                  kind={kind}
-                  image={images[kind] ?? null}
-                  onCapture={(image) => setImages((prev) => ({ ...prev, [kind]: image }))}
-                  onClear={() => setImages((prev) => {
-                    const next = { ...prev };
-                    delete next[kind];
-                    return next;
-                  })}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="card">
-            <h2>2. Profile &amp; activity</h2>
-            <div className="field-grid">
-              <label>
-                Age
-                <input
-                  type="number"
-                  value={profile.age ?? ""}
-                  onChange={(e) => setProfile((p) => ({ ...p, age: e.target.value ? Number(e.target.value) : undefined }))}
-                />
-              </label>
-              <label>
-                Biological sex
-                <select
-                  value={profile.sex ?? ""}
-                  onChange={(e) => setProfile((p) => ({ ...p, sex: e.target.value as HealthProfile["sex"] }))}
-                >
-                  <option value="">Prefer not to say</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-              </label>
-              <label>
-                Height (cm)
-                <input
-                  type="number"
-                  value={profile.heightCm ?? ""}
-                  onChange={(e) => setProfile((p) => ({ ...p, heightCm: e.target.value ? Number(e.target.value) : undefined }))}
-                />
-              </label>
-              <label>
-                Weight (kg)
-                <input
-                  type="number"
-                  value={profile.weightKg ?? ""}
-                  onChange={(e) => setProfile((p) => ({ ...p, weightKg: e.target.value ? Number(e.target.value) : undefined }))}
-                />
-              </label>
-              <label>
-                Waist (cm)
-                <input
-                  type="number"
-                  value={profile.waistCm ?? ""}
-                  onChange={(e) => setProfile((p) => ({ ...p, waistCm: e.target.value ? Number(e.target.value) : undefined }))}
-                />
-              </label>
-              <label>
-                Neck (cm)
-                <input
-                  type="number"
-                  value={profile.neckCm ?? ""}
-                  onChange={(e) => setProfile((p) => ({ ...p, neckCm: e.target.value ? Number(e.target.value) : undefined }))}
-                />
-              </label>
-              <label>
-                Hip (cm, optional)
-                <input
-                  type="number"
-                  value={profile.hipCm ?? ""}
-                  onChange={(e) => setProfile((p) => ({ ...p, hipCm: e.target.value ? Number(e.target.value) : undefined }))}
-                />
-              </label>
-              <label>
-                Today&apos;s steps
-                <input
-                  type="number"
-                  placeholder="e.g. 6400"
-                  value={profile.dailySteps ?? ""}
-                  onChange={(e) => setProfile((p) => ({ ...p, dailySteps: e.target.value ? Number(e.target.value) : undefined }))}
-                />
-              </label>
-            </div>
-            <label style={{ marginTop: 10 }}>
-              Training goal
-              <textarea
-                value={profile.trainingGoal ?? ""}
-                onChange={(e) => setProfile((p) => ({ ...p, trainingGoal: e.target.value }))}
-                placeholder="e.g. Cut to 12% body fat while keeping strength, fix rounded shoulders"
-              />
-            </label>
-            <label style={{ marginTop: 10 }}>
-              Recovery / sleep / stress notes
-              <textarea
-                value={profile.recoverySignals ?? ""}
-                onChange={(e) => setProfile((p) => ({ ...p, recoverySignals: e.target.value }))}
-                placeholder="e.g. 5.5 hrs sleep, high stress week, sore lower back"
-              />
-            </label>
-            <label style={{ marginTop: 10 }}>
-              Constraints (injuries, equipment, schedule)
-              <textarea
-                value={profile.constraints ?? ""}
-                onChange={(e) => setProfile((p) => ({ ...p, constraints: e.target.value }))}
-              />
-            </label>
-
-            <div className="actions">
-              <button className="primary" disabled={loading} onClick={handleAnalyze}>
-                {loading ? "Analyzing…" : "Run AI Health OS analysis"}
-              </button>
-            </div>
-            <div className="status-line">
-              {capturedCount} of {IMAGE_KINDS.length} images captured. Deep-agent crew (posture, body-composition,
-              recovery) and a full illustrated workout routine build automatically after the vision report.
-            </div>
-            {error && <div className="error-box">{error}</div>}
-          </div>
-
-          <CoachChat
-            state={coachState}
-            onProfileUpdates={handleProfileUpdates}
-            onPhotoCaptured={handlePhotoCaptured}
-            onLogMeal={handleLogMeal}
-            onSaveJoint={handleSaveJoint}
-            onSaveWalkSpot={handleSaveWalkSpot}
-            onRunAnalysis={handleAnalyze}
-            onRunMealPlan={handlePlanMeals}
-            analysisLoading={loading}
-            mealPlanLoading={mealPlanLoading}
-          />
-
-          <MealPlanCard
-            response={mealPlanResponse}
-            loading={mealPlanLoading}
-            error={mealPlanError}
-            onGenerate={handlePlanMeals}
-            onSaveOutlet={handleSaveOutlet}
-          />
-
-          <div className="card">
-            <h2>Manual food &amp; activity editing</h2>
-            <p className="muted">
-              Your coach chat above can do all of this for you — these are the same saved joints, walk spots, and meal
-              log for quick manual edits.
-            </p>
-          </div>
-
-          <JointManager joints={joints} onChange={setJoints} />
-          <WalkSpotManager walkSpots={walkSpots} onChange={setWalkSpots} />
-          <MealLogger log={mealLog} joints={joints} onChange={setMealLog} />
-        </section>
-
-        <section>
-          {!result && (
-            <div className="card">
-              <h2>Report</h2>
-              <p className="muted">Capture at least a face photo, log today&apos;s steps, and run the analysis to see your report here.</p>
-            </div>
-          )}
-
-          {result && (
-            <>
-              <div className="card">
-                <h2>Readiness</h2>
-                <div className="score-row">
-                  <div className="score-ring" style={{ "--pct": scorePercent(result.report.readinessScore) } as React.CSSProperties}>
-                    <span>{scorePercent(result.report.readinessScore)}</span>
-                  </div>
-                  <div>
-                    <p style={{ margin: 0 }}>{result.report.summary}</p>
-                    <div className="pill-row">
-                      <span className="pill on">confidence: {result.report.confidence}</span>
-                      <span className={`pill ${result.browserStatus.startsWith("enabled") ? "on" : "off"}`}>
-                        browser: {result.browserStatus.startsWith("enabled") ? "live" : "offline"}
-                      </span>
-                      <span className="pill on">agent: {result.agentStatus}</span>
-                      {result.localMetrics.activityLevel && <span className="pill on">activity: {result.localMetrics.activityLevel}</span>}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="section-block">
-                  <h3>Posture — {scorePercent(result.report.posture.score)}/100</h3>
-                  <ul>{result.report.posture.findings.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                  <h3>Correction protocol</h3>
-                  <ul>{result.report.posture.correctiveProtocol.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                </div>
-
-                <div className="section-block">
-                  <h3>Body composition</h3>
-                  <p>{result.report.bodyComposition.estimate}</p>
-                  <ul>{result.report.bodyComposition.visualSignals.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                  {(result.localMetrics.bmi || result.localMetrics.navyBodyFatPercent) && (
-                    <div className="tag-row">
-                      {result.localMetrics.bmi && <span className="tag">BMI {result.localMetrics.bmi}</span>}
-                      {result.localMetrics.navyBodyFatPercent && (
-                        <span className="tag">Navy est. {result.localMetrics.navyBodyFatPercent}%</span>
-                      )}
-                      {result.localMetrics.waistToHeightRatio && (
-                        <span className="tag">WHtR {result.localMetrics.waistToHeightRatio}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="section-block">
-                  <h3>Face &amp; recovery signals</h3>
-                  <ul>{result.report.face.recoverySignals.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                </div>
-
-                <div className="section-block">
-                  <h3>Plan — today</h3>
-                  <ul>{result.report.plan.today.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                  <h3>Plan — this week</h3>
-                  <ul>{result.report.plan.thisWeek.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                </div>
-
-                <div className="section-block">
-                  <h3>Risks &amp; disclaimers</h3>
-                  <ul>{result.report.risksAndDisclaimers.map((item, i) => <li key={i}>{item}</li>)}</ul>
-                </div>
-
-                {result.references.length > 0 && (
-                  <div className="section-block">
-                    <h3>Further reading</h3>
-                    <ul>
-                      {result.references.map((ref) => (
-                        <li key={ref.url}>
-                          <a href={ref.url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
-                            {ref.title}
-                          </a>{" "}
-                          <span className="muted">— {ref.topic}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              <div className="card">
-                <div className="routine-header">
-                  <h2 style={{ margin: 0 }}>Your illustrated workout routine</h2>
-                  <span className="routine-meta">{result.report.routine.weeklyFrequency}</span>
-                </div>
-                <p className="muted">{result.report.routine.focus}</p>
-                <p className="muted">{result.report.routine.stepsContext}</p>
-                <div className="exercise-grid">
-                  {result.report.routine.exercises.map((exercise) => (
-                    <ExerciseCard
-                      key={exercise.id}
-                      exercise={exercise}
-                      visual={exerciseVisuals[exercise.id]}
-                      video={exerciseVideos[exercise.id]}
-                      visualsLoading={routineVisualsLoading}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="card">
-                <h2>Deep-agent coaching brief</h2>
-                <p className="muted">Dynamic subagents (posture, body-composition, recovery) via deepagents, {result.models.intelligence}.</p>
-                <div className="brief-box">{result.agentBrief || "Deep agent did not return a brief for this run."}</div>
-              </div>
-
-              <div className="card">
-                <h2>Nano Banana dashboard visual</h2>
-                <p className="muted">{result.report.generatedVisualPrompt}</p>
-                <div className="actions">
-                  <button className="secondary" disabled={visualLoading} onClick={handleGenerateVisual}>
-                    {visualLoading ? "Rendering…" : "Generate coaching visual"}
-                  </button>
-                </div>
-                {visual && <img className="visual-preview" src={`data:${visual.mimeType};base64,${visual.data}`} alt="Generated coaching visual" />}
-              </div>
-            </>
-          )}
-        </section>
-      </div>
+    <main className="coach-page">
+      <CoachChat
+        state={coachState}
+        onProfileUpdates={handleProfileUpdates}
+        onPhotoCaptured={handlePhotoCaptured}
+        onLogMeal={handleLogMeal}
+        onSaveJoint={handleSaveJoint}
+        onSaveWalkSpot={handleSaveWalkSpot}
+        onRunAnalysis={handleAnalyze}
+        onRunMealPlan={handlePlanMeals}
+        analysisLoading={loading}
+        mealPlanLoading={mealPlanLoading}
+      />
     </main>
   );
 }
