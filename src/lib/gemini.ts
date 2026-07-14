@@ -96,13 +96,10 @@ export async function runCoachTurn(state: CoachState, messages: CoachChatMessage
   const ai = requireGeminiClient();
   const contextBlock = buildCoachTurnPrompt(state, messages);
 
-  const contents = messages.map((message) => {
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: message.content }];
-    if (message.attachment) {
-      parts.push({ inlineData: { mimeType: message.attachment.mimeType, data: message.attachment.data } });
-    }
-    return { role: message.role === "coach" ? "model" : "user", parts };
-  });
+  const contents = messages.map((message) => ({
+    role: message.role === "coach" ? "model" : "user",
+    parts: [{ text: message.content }]
+  }));
 
   const response = await ai.models.generateContent({
     model: resolveTextModel(),

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import type {
-  CoachAttachment,
   CoachChatMessage,
   CoachJointDraft,
   CoachMealLogDraft,
@@ -14,13 +13,10 @@ import type {
 type Props = {
   state: CoachState;
   onProfileUpdates: (updates: Partial<CoachProfile>) => void;
-  onPhotoCaptured: (attachment: CoachAttachment) => void;
   onLogMeal: (draft: CoachMealLogDraft) => void;
   onSaveJoint: (draft: CoachJointDraft) => void;
   onSaveWalkSpot: (draft: CoachWalkSpotDraft) => void;
-  onRunAnalysis: () => void;
   onRunMealPlan: () => void;
-  analysisLoading: boolean;
   mealPlanLoading: boolean;
 };
 
@@ -30,9 +26,7 @@ export function CoachChat({
   onLogMeal,
   onSaveJoint,
   onSaveWalkSpot,
-  onRunAnalysis,
   onRunMealPlan,
-  analysisLoading,
   mealPlanLoading,
 }: Props) {
   const [messages, setMessages] = useState<CoachChatMessage[]>([]);
@@ -40,18 +34,15 @@ export function CoachChat({
   const [sending, setSending] = useState(false);
   const [started, setStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [readyForAnalysis, setReadyForAnalysis] = useState(false);
   const [readyForMealPlan, setReadyForMealPlan] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function scrollToBottom() {
+  useEffect(() => {
     requestAnimationFrame(() => {
       listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
     });
-  }
-
-  useEffect(scrollToBottom, [messages, sending]);
+  }, [messages, sending]);
 
   async function sendTurn(nextMessages: CoachChatMessage[]) {
     setSending(true);
@@ -69,7 +60,6 @@ export function CoachChat({
       if (payload.logMeal) onLogMeal(payload.logMeal);
       if (payload.saveJoint) onSaveJoint(payload.saveJoint);
       if (payload.saveWalkSpot) onSaveWalkSpot(payload.saveWalkSpot);
-      if (payload.readyForAnalysis !== undefined) setReadyForAnalysis(Boolean(payload.readyForAnalysis));
       if (payload.readyForMealPlan !== undefined) setReadyForMealPlan(Boolean(payload.readyForMealPlan));
 
       setMessages([...nextMessages, { role: "coach", content: payload.reply as string }]);
@@ -138,28 +128,16 @@ export function CoachChat({
         )}
       </div>
 
-      {(readyForAnalysis || readyForMealPlan) && (
+      {readyForMealPlan && (
         <div className="coach-actions">
-          {readyForAnalysis && (
-            <button
-              type="button"
-              className="secondary"
-              disabled={analysisLoading}
-              onClick={onRunAnalysis}
-            >
-              {analysisLoading ? "Analyzing…" : "Run health analysis"}
-            </button>
-          )}
-          {readyForMealPlan && (
-            <button
-              type="button"
-              className="secondary"
-              disabled={mealPlanLoading}
-              onClick={onRunMealPlan}
-            >
-              {mealPlanLoading ? "Planning…" : "Generate meal plan"}
-            </button>
-          )}
+          <button
+            type="button"
+            className="secondary"
+            disabled={mealPlanLoading}
+            onClick={onRunMealPlan}
+          >
+            {mealPlanLoading ? "Planning…" : "Generate meal plan"}
+          </button>
         </div>
       )}
 

@@ -6,16 +6,9 @@ import type { CoachState, CoachChatMessage } from "../../../src/lib/coach-types"
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const attachmentSchema = z.object({
-  kind: z.enum(["face", "frontBody", "sideBody", "posture"]),
-  mimeType: z.string().min(1),
-  data: z.string().min(1)
-});
-
 const messageSchema = z.object({
   role: z.enum(["user", "coach"]),
   content: z.string().max(4000),
-  attachment: attachmentSchema.optional()
 });
 
 const profileSchema = z.object({
@@ -36,31 +29,32 @@ const profileSchema = z.object({
   workLocation: z.string().optional(),
   dietaryPrefs: z.string().optional(),
   budgetMinRs: z.number().optional(),
-  budgetMaxRs: z.number().optional()
+  budgetMaxRs: z.number().optional(),
 });
 
 const requestSchema = z.object({
   state: z.object({
     profile: profileSchema,
-    capturedImageKinds: z.array(z.enum(["face", "frontBody", "sideBody", "posture"])),
     joints: z.array(z.object({ name: z.string(), area: z.string() })),
     walkSpots: z.array(z.object({ name: z.string(), area: z.string() })),
     recentMealLog: z.array(
       z.object({
         date: z.string(),
         mealType: z.enum(["breakfast", "lunch", "snack", "dinner"]),
-        item: z.string()
-      })
+        item: z.string(),
+      }),
     ),
-    report: z.record(z.string(), z.unknown()).nullable().optional(),
-    mealPlan: z.record(z.string(), z.unknown()).nullable().optional()
+    mealPlan: z.record(z.string(), z.unknown()).nullable().optional(),
   }),
-  messages: z.array(messageSchema).min(1).max(60)
+  messages: z.array(messageSchema).min(1).max(60),
 });
 
 export async function POST(request: Request) {
   if (!intelligenceConfigured()) {
-    return NextResponse.json({ error: "No AI provider configured. Set GEMINI_API_KEY in your environment." }, { status: 500 });
+    return NextResponse.json(
+      { error: "No AI provider configured. Set GEMINI_API_KEY in your environment." },
+      { status: 500 },
+    );
   }
 
   const body = await request.json().catch(() => null);

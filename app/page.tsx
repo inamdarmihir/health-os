@@ -4,22 +4,9 @@ import { useState } from "react";
 import { CoachChat } from "../src/components/CoachChat";
 import { useLocalStorage } from "../src/lib/use-local-storage";
 import { generateId } from "../src/lib/id";
-import type { HealthProfile, ImageInput, ImageKind } from "../src/lib/health-types";
-import type {
-  FoodJoint,
-  FoodProfile,
-  MealLogEntry,
-  MealPlanResponse,
-  WalkSpot,
-} from "../src/lib/food-types";
-import type {
-  CoachAttachment,
-  CoachJointDraft,
-  CoachMealLogDraft,
-  CoachProfile,
-  CoachState,
-  CoachWalkSpotDraft,
-} from "../src/lib/coach-types";
+import type { HealthProfile } from "../src/lib/health-types";
+import type { FoodJoint, FoodProfile, MealLogEntry, MealPlanResponse, WalkSpot } from "../src/lib/food-types";
+import type { CoachJointDraft, CoachMealLogDraft, CoachProfile, CoachState, CoachWalkSpotDraft } from "../src/lib/coach-types";
 
 const EMPTY_PROFILE: HealthProfile = {
   sex: "",
@@ -43,34 +30,14 @@ function todayIso() {
 }
 
 export default function Page() {
-  const [images, setImages] = useState<Partial<Record<ImageKind, ImageInput>>>({});
   const [profile, setProfile] = useState<HealthProfile>(EMPTY_PROFILE);
-  const [loading, setLoading] = useState(false);
   const [mealPlanLoading, setMealPlanLoading] = useState(false);
   const [mealPlanResponse, setMealPlanResponse] = useState<MealPlanResponse | null>(null);
 
-  const [foodProfile, setFoodProfile] = useLocalStorage<FoodProfile>(
-    "aihealthos.food.profile",
-    EMPTY_FOOD_PROFILE,
-  );
+  const [foodProfile, setFoodProfile] = useLocalStorage<FoodProfile>("aihealthos.food.profile", EMPTY_FOOD_PROFILE);
   const [joints, setJoints] = useLocalStorage<FoodJoint[]>("aihealthos.food.joints", []);
   const [walkSpots, setWalkSpots] = useLocalStorage<WalkSpot[]>("aihealthos.food.walkSpots", []);
   const [mealLog, setMealLog] = useLocalStorage<MealLogEntry[]>("aihealthos.food.log", []);
-
-  async function handleAnalyze() {
-    if (Object.keys(images).length === 0) return;
-    setLoading(true);
-    try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, images: Object.values(images), runDeepAgent: true }),
-      });
-      await response.json();
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handlePlanMeals() {
     setMealPlanLoading(true);
@@ -78,13 +45,7 @@ export default function Page() {
       const response = await fetch("/api/meal-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile: foodProfile,
-          joints,
-          walkSpots,
-          recentLog: mealLog,
-          date: todayIso(),
-        }),
+        body: JSON.stringify({ profile: foodProfile, joints, walkSpots, recentLog: mealLog, date: todayIso() }),
       });
       const payload = await response.json();
       if (response.ok) setMealPlanResponse(payload as MealPlanResponse);
@@ -98,13 +59,8 @@ export default function Page() {
     setFoodProfile((prev) => ({ ...prev, ...updates }) as FoodProfile);
   }
 
-  function handlePhotoCaptured(attachment: CoachAttachment) {
-    setImages((prev) => ({ ...prev, [attachment.kind]: attachment }));
-  }
-
   function handleLogMeal(draft: CoachMealLogDraft) {
-    const entry: MealLogEntry = { id: generateId(), date: todayIso(), ...draft };
-    setMealLog((prev) => [...prev, entry]);
+    setMealLog((prev) => [...prev, { id: generateId(), date: todayIso(), ...draft }]);
   }
 
   function handleSaveJoint(draft: CoachJointDraft) {
@@ -117,11 +73,9 @@ export default function Page() {
 
   const coachState: CoachState = {
     profile: { ...profile, ...foodProfile },
-    capturedImageKinds: Object.keys(images) as ImageKind[],
     joints: joints.map((j) => ({ name: j.name, area: j.area })),
     walkSpots: walkSpots.map((s) => ({ name: s.name, area: s.area })),
     recentMealLog: mealLog.map((e) => ({ date: e.date, mealType: e.mealType, item: e.item })),
-    report: null,
     mealPlan: mealPlanResponse?.plan ?? null,
   };
 
@@ -130,13 +84,10 @@ export default function Page() {
       <CoachChat
         state={coachState}
         onProfileUpdates={handleProfileUpdates}
-        onPhotoCaptured={handlePhotoCaptured}
         onLogMeal={handleLogMeal}
         onSaveJoint={handleSaveJoint}
         onSaveWalkSpot={handleSaveWalkSpot}
-        onRunAnalysis={handleAnalyze}
         onRunMealPlan={handlePlanMeals}
-        analysisLoading={loading}
         mealPlanLoading={mealPlanLoading}
       />
     </main>
