@@ -1,22 +1,61 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { chatWithActiveCoach, intelligenceConfigured } from "../../../src/lib/ai";
-import type { HealthOsReport } from "../../../src/lib/health-types";
+import { runCoachTurn, intelligenceConfigured } from "../../../src/lib/ai";
+import type { CoachState, CoachChatMessage } from "../../../src/lib/coach-types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+const attachmentSchema = z.object({
+  kind: z.enum(["face", "frontBody", "sideBody", "posture"]),
+  mimeType: z.string().min(1),
+  data: z.string().min(1)
+});
+
+const messageSchema = z.object({
+  role: z.enum(["user", "coach"]),
+  content: z.string().max(4000),
+  attachment: attachmentSchema.optional()
+});
+
+const profileSchema = z.object({
+  age: z.number().optional(),
+  sex: z.enum(["male", "female", "other", ""]).optional(),
+  heightCm: z.number().optional(),
+  weightKg: z.number().optional(),
+  waistCm: z.number().optional(),
+  neckCm: z.number().optional(),
+  hipCm: z.number().optional(),
+  dailySteps: z.number().optional(),
+  trainingGoal: z.string().optional(),
+  recoverySignals: z.string().optional(),
+  constraints: z.string().optional(),
+  browserGoal: z.string().optional(),
+  homeLocation: z.string().optional(),
+  city: z.string().optional(),
+  workLocation: z.string().optional(),
+  dietaryPrefs: z.string().optional(),
+  budgetMinRs: z.number().optional(),
+  budgetMaxRs: z.number().optional()
+});
+
 const requestSchema = z.object({
-  messages: z
-    .array(
+  state: z.object({
+    profile: profileSchema,
+    capturedImageKinds: z.array(z.enum(["face", "frontBody", "sideBody", "posture"])),
+    joints: z.array(z.object({ name: z.string(), area: z.string() })),
+    walkSpots: z.array(z.object({ name: z.string(), area: z.string() })),
+    recentMealLog: z.array(
       z.object({
-        role: z.enum(["user", "coach"]),
-        content: z.string().min(1).max(4000)
+        date: z.string(),
+        mealType: z.enum(["breakfast", "lunch", "snack", "dinner"]),
+        item: z.string()
       })
-    )
-    .min(1)
-    .max(40),
-  report: z.record(z.string(), z.unknown()).nullable().optional()
+    ),
+    report: z.record(z.string(), z.unknown()).nullable().optional(),
+    mealPlan: z.record(z.string(), z.unknown()).nullable().optional()
+  }),
+  messages: z.array(messageSchema).min(1).max(60)
 });
 
 export async function POST(request: Request) {
@@ -31,8 +70,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const reply = await chatWithActiveCoach(parsed.data.messages, (parsed.data.report as HealthOsReport | null) ?? null);
-    return NextResponse.json({ reply });
+    const result = await runCoachTurn(parsed.data.state as CoachState, parsed.data.messages as CoachChatMessage[]);
+    return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Coach chat failed.";
     return NextResponse.json({ error: message }, { status: 502 });

@@ -1,10 +1,12 @@
 import type { FoodJoint, FoodProfile, FoodSearchHit, MealLogEntry, MealPlan, WalkSpot } from "./food-types";
 import { buildMealPlanPrompt } from "./food-prompts";
 import { GoogleGenAI } from "@google/genai";
-import type { ChatMessage, ExerciseVisual, HealthOsReport, HealthProfile, ImageInput, LocalMetricEstimate, RoutineExercise } from "./health-types";
+import type { ExerciseVisual, HealthOsReport, HealthProfile, ImageInput, LocalMetricEstimate, RoutineExercise } from "./health-types";
 import { formatMetricContext } from "./local-metrics";
 import { extractJson } from "./json-utils";
-import { MAX_ROUTINE_EXERCISES, buildHealthReportPrompt, COACH_SYSTEM_PROMPT } from "./health-prompts";
+import { MAX_ROUTINE_EXERCISES, buildHealthReportPrompt } from "./health-prompts";
+import type { CoachChatMessage, CoachState, CoachTurnResult } from "./coach-types";
+import { COACH_TURN_SYSTEM_PROMPT, buildCoachTurnPrompt } from "./coach-prompts";
 
 const DEFAULT_TEXT_MODEL = "gemini-3-flash-preview";
 const DEFAULT_IMAGE_MODEL = "gemini-3-pro-image-preview";
@@ -90,26 +92,32 @@ export async function generateExerciseVisuals(exercises: Pick<RoutineExercise, "
     .map((result) => result.value);
 }
 
-export async function chatWithCoach(messages: ChatMessage[], reportContext: HealthOsReport | null): Promise<string> {
+export async function runCoachTurn(state: CoachState, messages: CoachChatMessage[]): Promise<CoachTurnResult> {
   const ai = requireGeminiClient();
-  const contextBlock = reportContext
-    ? `Current health report JSON:\n${JSON.stringify(reportContext)}`
-    : "No health report has been generated yet for this user.";
+  const contextBlock = buildCoachTurnPrompt(state, messages);
+
+  const contents = messages.map((message) => {
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: message.content }];
+    if (message.attachment) {
+      parts.push({ inlineData: { mimeType: message.attachment.mimeType, data: message.attachment.data } });
+    }
+    return { role: message.role === "coach" ? "model" : "user", parts };
+  });
 
   const response = await ai.models.generateContent({
     model: resolveTextModel(),
-    contents: messages.map((message) => ({
-      role: message.role === "coach" ? "model" : "user",
-      parts: [{ text: message.content }]
-    })),
+    contents,
     config: {
-      systemInstruction: `${COACH_SYSTEM_PROMPT}\n\n${contextBlock}`,
+      systemInstruction: `${COACH_TURN_SYSTEM_PROMPT}\n\n${contextBlock}`,
+      responseMimeType: "application/json",
       temperature: 0.5,
-      maxOutputTokens: 1024
+      maxOutputTokens: 2048,
+      thinkingConfig: { thinkingBudget: 0 }
     }
   });
 
-  return response.text ?? "I couldn't generate a response — try asking again.";
+  const finishReason = response.candidates?.[0]?.finishReason;
+  return extractJson(response.text ?? "", finishReason) as CoachTurnResult;
 }
 
 export async function planMealsWithGemini(
@@ -119,7 +127,7 @@ export async function planMealsWithGemini(
   recentLog: MealLogEntry[],
   searchHits: FoodSearchHit[],
   targetDate: string
-): Promise<Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">> {
+): Promise<Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources" | "discoveredOutlets">> {
   const ai = requireGeminiClient();
   const prompt = buildMealPlanPrompt(profile, joints, walkSpots, recentLog, searchHits, targetDate);
 
@@ -135,5 +143,5 @@ export async function planMealsWithGemini(
   });
 
   const finishReason = response.candidates?.[0]?.finishReason;
-  return extractJson(response.text ?? "", finishReason) as Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">;
+  return extractJson(response.text ?? "", finishReason) as Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources" | "discoveredOutlets">;
 }

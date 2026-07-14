@@ -1,4 +1,5 @@
-import type { FoodJoint, FoodProfile, FoodSearchHit } from "./food-types";
+import type { DiscoveredFoodOutlet, FoodJoint, FoodProfile, FoodSearchHit } from "./food-types";
+import { browserAutomationEnabled, snapshotUrl } from "./browser-tool";
 
 const EXA_SEARCH_URL = "https://api.exa.ai/search";
 const MAX_JOINTS_SEARCHED = 6;
@@ -63,4 +64,48 @@ export async function findNearbyFoodEvidence(profile: FoodProfile, joints: FoodJ
   }
 
   return hits;
+}
+
+/**
+ * Surfaces outlets beyond the user's saved joints — genuinely new spots near them,
+ * optionally verified live via agent-browser when enabled. Best-effort: silently
+ * degrades to [] when EXA_API_KEY or a location is missing, same as
+ * findNearbyFoodEvidence.
+ */
+export async function discoverNewFoodOutlets(profile: FoodProfile, joints: FoodJoint[]): Promise<DiscoveredFoodOutlet[]> {
+  const apiKey = process.env.EXA_API_KEY;
+  const location = profile.homeLocation || profile.city || profile.workLocation || "";
+  if (!apiKey || !location) return [];
+
+  const results = await exaSearch(
+    apiKey,
+    `new food outlets restaurants near ${location} not on Swiggy Zomato hidden gems`,
+    8
+  ).catch(() => [] as ExaResult[]);
+
+  const knownNames = joints.map((joint) => joint.name.toLowerCase()).filter(Boolean);
+  const isKnown = (candidate: ExaResult) => {
+    const haystacks = [candidate.title, candidate.url]
+      .filter((v): v is string => Boolean(v))
+      .map((v) => v.toLowerCase());
+    return knownNames.some((name) => haystacks.some((h) => h.includes(name) || name.includes(h)));
+  };
+
+  const candidates = results.filter((r): r is ExaResult & { url: string } => Boolean(r.url) && !isKnown(r)).slice(0, 3);
+
+  const useBrowser = browserAutomationEnabled();
+  return Promise.all(
+    candidates.map(async (candidate) => {
+      const name = candidate.title || candidate.url;
+      const verifiedLive = useBrowser ? (await snapshotUrl(candidate.url, `Verify menu/price info for ${name}`)).ok : false;
+      return {
+        name,
+        area: location,
+        cuisine: undefined,
+        url: candidate.url,
+        snippet: candidate.text?.slice(0, 300),
+        verifiedLive
+      } satisfies DiscoveredFoodOutlet;
+    })
+  );
 }

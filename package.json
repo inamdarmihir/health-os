@@ -19,6 +19,7 @@
     "@sparticuz/chromium": "latest",
     "agent-browser": "^0.31.1",
     "deepagents": "^1.10.7",
+    "headroom-ai": "^0.22.4",
     "langchain": "latest",
     "next": "latest",
     "openai": "latest",

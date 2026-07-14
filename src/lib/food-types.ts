@@ -46,6 +46,15 @@ export type FoodSearchHit = {
   snippet?: string;
 };
 
+export type DiscoveredFoodOutlet = {
+  name: string;
+  area?: string;
+  cuisine?: string;
+  url: string;
+  snippet?: string;
+  verifiedLive: boolean;
+};
+
 export type SuggestedMeal = {
   mealType: MealType;
   item: string;
@@ -72,6 +81,7 @@ export type MealPlan = {
   varietyNote: string;
   walk: WalkRecommendation | null;
   sources: FoodSearchHit[];
+  discoveredOutlets: DiscoveredFoodOutlet[];
 };
 
 export type MealPlanResponse = {

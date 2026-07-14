@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { activeProvider, intelligenceConfigured, planMeals, resolveIntelligenceModel } from "../../../src/lib/ai";
-import { findNearbyFoodEvidence } from "../../../src/lib/food-search";
+import { discoverNewFoodOutlets, findNearbyFoodEvidence } from "../../../src/lib/food-search";
 import { exaConfigured } from "../../../src/lib/exa";
 import type { MealPlan, MealPlanResponse } from "../../../src/lib/food-types";
 
@@ -73,13 +73,17 @@ export async function POST(request: Request) {
 
   try {
     const searchHits = await findNearbyFoodEvidence(profile, joints);
-    const generated = await planMeals(profile, joints, walkSpots, recentLog, searchHits, targetDate);
+    const [generated, discoveredOutlets] = await Promise.all([
+      planMeals(profile, joints, walkSpots, recentLog, searchHits, targetDate),
+      discoverNewFoodOutlets(profile, joints)
+    ]);
 
     const plan: MealPlan = {
       date: targetDate,
       budgetMinRs: profile.budgetMinRs,
       budgetMaxRs: profile.budgetMaxRs,
       sources: searchHits,
+      discoveredOutlets,
       ...generated
     };
 

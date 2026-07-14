@@ -1,7 +1,8 @@
-import type { ChatMessage, HealthOsReport, HealthProfile, ImageInput, LocalMetricEstimate } from "./health-types";
+import type { HealthOsReport, HealthProfile, ImageInput, LocalMetricEstimate } from "./health-types";
 import type { FoodJoint, FoodProfile, FoodSearchHit, MealLogEntry, MealPlan, WalkSpot } from "./food-types";
-import { analyzeHealthWithGemini, chatWithCoach as chatWithGeminiCoach, getGeminiApiKey, planMealsWithGemini, resolveTextModel as resolveGeminiTextModel } from "./gemini";
-import { analyzeHealthWithOpenAi, chatWithOpenAiCoach, getOpenAiApiKey, planMealsWithOpenAi, resolveOpenAiTextModel } from "./openai";
+import type { CoachChatMessage, CoachState, CoachTurnResult } from "./coach-types";
+import { analyzeHealthWithGemini, getGeminiApiKey, planMealsWithGemini, resolveTextModel as resolveGeminiTextModel, runCoachTurn as runCoachTurnWithGemini } from "./gemini";
+import { analyzeHealthWithOpenAi, getOpenAiApiKey, planMealsWithOpenAi, resolveOpenAiTextModel, runCoachTurn as runCoachTurnWithOpenAi } from "./openai";
 
 export type AiProvider = "openai" | "gemini";
 
@@ -25,10 +26,8 @@ export function analyzeHealth(profile: HealthProfile, images: ImageInput[], metr
     : analyzeHealthWithGemini(profile, images, metrics);
 }
 
-export function chatWithActiveCoach(messages: ChatMessage[], reportContext: HealthOsReport | null): Promise<string> {
-  return activeProvider() === "openai"
-    ? chatWithOpenAiCoach(messages, reportContext)
-    : chatWithGeminiCoach(messages, reportContext);
+export function runCoachTurn(state: CoachState, messages: CoachChatMessage[]): Promise<CoachTurnResult> {
+  return activeProvider() === "openai" ? runCoachTurnWithOpenAi(state, messages) : runCoachTurnWithGemini(state, messages);
 }
 
 export function planMeals(
@@ -38,7 +37,7 @@ export function planMeals(
   recentLog: MealLogEntry[],
   searchHits: FoodSearchHit[],
   targetDate: string
-): Promise<Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources">> {
+): Promise<Omit<MealPlan, "date" | "budgetMinRs" | "budgetMaxRs" | "sources" | "discoveredOutlets">> {
   return activeProvider() === "openai"
     ? planMealsWithOpenAi(profile, joints, walkSpots, recentLog, searchHits, targetDate)
     : planMealsWithGemini(profile, joints, walkSpots, recentLog, searchHits, targetDate);

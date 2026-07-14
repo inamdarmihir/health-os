@@ -62,6 +62,7 @@ export function buildMealPlanPrompt(
     `Live web evidence on nearby menus/prices (from Swiggy/Zomato search, may be partial or absent):\n${evidenceSummary}`,
     "",
     "Build a full day's meal plan (breakfast, lunch, snack, dinner — you may drop snack if the budget is tight, but always keep breakfast, lunch, and dinner) picking specific items from the preferred joints when they plausibly fit the budget, otherwise a reasonable nearby alternative. Estimate a realistic Swiggy/Zomato price in INR per meal (roughly including delivery/packaging where relevant). The sum of estimatedCostRs across all meals MUST land inside the stated budget range. Favor variety against the recent log. Recommend exactly one walk (with timing relative to a meal, e.g. \"after dinner\") chosen from the saved spots when one fits, else a sensible generic suggestion.",
+    "Bias every meal choice toward higher protein where it plausibly fits the budget and dietary preferences (e.g. eggs, chicken, paneer, dal, curd, whey/protein add-ons) without forcing an unrealistic or unpalatable pick — protein-density is a soft preference, never override budget or stated dietary restrictions to chase it.",
     "",
     "Return only valid JSON matching this TypeScript type:",
     "{",

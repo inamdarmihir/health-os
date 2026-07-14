@@ -1,12 +1,13 @@
 "use client";
 
-import type { MealPlanResponse } from "../../lib/food-types";
+import type { DiscoveredFoodOutlet, MealPlanResponse } from "../../lib/food-types";
 
 type Props = {
   response: MealPlanResponse | null;
   loading: boolean;
   error: string | null;
   onGenerate: () => void;
+  onSaveOutlet: (outlet: DiscoveredFoodOutlet) => void;
 };
 
 function budgetPct(plan: MealPlanResponse["plan"]) {
@@ -14,7 +15,7 @@ function budgetPct(plan: MealPlanResponse["plan"]) {
   return Math.max(0, Math.min(100, Math.round((plan.estimatedTotalRs / plan.budgetMaxRs) * 100)));
 }
 
-export function MealPlanCard({ response, loading, error, onGenerate }: Props) {
+export function MealPlanCard({ response, loading, error, onGenerate, onSaveOutlet }: Props) {
   const plan = response?.plan;
   const searchStatus = response?.searchStatus ?? "offline";
 
@@ -98,6 +99,48 @@ export function MealPlanCard({ response, loading, error, onGenerate }: Props) {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {plan.discoveredOutlets.length > 0 && (
+            <div className="section-block">
+              <h3>Discovered nearby</h3>
+              <div className="joint-list">
+                {plan.discoveredOutlets.map((outlet, i) => (
+                  <div key={i} className="joint-item">
+                    <div>
+                      <a
+                        className="joint-name"
+                        href={outlet.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        {outlet.name}
+                      </a>
+                      {(outlet.area || outlet.cuisine) && (
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {outlet.area}
+                          {outlet.cuisine ? ` · ${outlet.cuisine}` : ""}
+                        </div>
+                      )}
+                      <div className="tag-row">
+                        <span className={`pill ${outlet.verifiedLive ? "on" : "off"}`}>
+                          {outlet.verifiedLive ? "Verified live" : "Unverified"}
+                        </span>
+                      </div>
+                      {outlet.snippet && (
+                        <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+                          {outlet.snippet}
+                        </p>
+                      )}
+                    </div>
+                    <button type="button" className="secondary" onClick={() => onSaveOutlet(outlet)}>
+                      Save as joint
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </>

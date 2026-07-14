@@ -1,11 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { CaptureSlot } from "../src/components/CaptureSlot";
 import { ExerciseCard } from "../src/components/ExerciseCard";
-import { ChatCoach } from "../src/components/ChatCoach";
+import { CoachChat } from "../src/components/CoachChat";
+import { JointManager } from "../src/components/food/JointManager";
+import { WalkSpotManager } from "../src/components/food/WalkSpotManager";
+import { MealLogger } from "../src/components/food/MealLogger";
+import { MealPlanCard } from "../src/components/food/MealPlanCard";
+import { useLocalStorage } from "../src/lib/use-local-storage";
+import { generateId } from "../src/lib/id";
 import type { ExerciseVideo, ExerciseVisual, HealthOsResponse, HealthProfile, ImageInput, ImageKind } from "../src/lib/health-types";
+import type {
+  DiscoveredFoodOutlet,
+  FoodJoint,
+  FoodProfile,
+  MealLogEntry,
+  MealPlanResponse,
+  WalkSpot
+} from "../src/lib/food-types";
+import type { CoachAttachment, CoachJointDraft, CoachMealLogDraft, CoachProfile, CoachState, CoachWalkSpotDraft } from "../src/lib/coach-types";
 
 const IMAGE_KINDS: ImageKind[] = ["face", "frontBody", "sideBody", "posture"];
 
@@ -17,8 +31,21 @@ const EMPTY_PROFILE: HealthProfile = {
   browserGoal: ""
 };
 
+const EMPTY_FOOD_PROFILE: FoodProfile = {
+  homeLocation: "",
+  city: "",
+  workLocation: "",
+  dietaryPrefs: "",
+  budgetMinRs: 500,
+  budgetMaxRs: 700
+};
+
 function scorePercent(score: number) {
   return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default function Page() {
@@ -32,6 +59,14 @@ export default function Page() {
   const [visual, setVisual] = useState<{ mimeType: string; data: string } | null>(null);
   const [exerciseVisuals, setExerciseVisuals] = useState<Record<string, ExerciseVisual>>({});
   const [exerciseVideos, setExerciseVideos] = useState<Record<string, ExerciseVideo>>({});
+
+  const [foodProfile, setFoodProfile] = useLocalStorage<FoodProfile>("aihealthos.food.profile", EMPTY_FOOD_PROFILE);
+  const [joints, setJoints] = useLocalStorage<FoodJoint[]>("aihealthos.food.joints", []);
+  const [walkSpots, setWalkSpots] = useLocalStorage<WalkSpot[]>("aihealthos.food.walkSpots", []);
+  const [mealLog, setMealLog] = useLocalStorage<MealLogEntry[]>("aihealthos.food.log", []);
+  const [mealPlanResponse, setMealPlanResponse] = useState<MealPlanResponse | null>(null);
+  const [mealPlanLoading, setMealPlanLoading] = useState(false);
+  const [mealPlanError, setMealPlanError] = useState<string | null>(null);
 
   const capturedCount = Object.keys(images).length;
 
@@ -115,6 +150,70 @@ export default function Page() {
     }
   }
 
+  async function handlePlanMeals() {
+    setMealPlanLoading(true);
+    setMealPlanError(null);
+    try {
+      const response = await fetch("/api/meal-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: foodProfile, joints, walkSpots, recentLog: mealLog, date: todayIso() })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Meal plan generation failed.");
+      setMealPlanResponse(payload as MealPlanResponse);
+    } catch (err) {
+      setMealPlanError(err instanceof Error ? err.message : "Meal plan generation failed.");
+    } finally {
+      setMealPlanLoading(false);
+    }
+  }
+
+  function handleProfileUpdates(updates: Partial<CoachProfile>) {
+    setProfile((prev) => ({ ...prev, ...updates }) as HealthProfile);
+    setFoodProfile((prev) => ({ ...prev, ...updates }) as FoodProfile);
+  }
+
+  function handlePhotoCaptured(attachment: CoachAttachment) {
+    setImages((prev) => ({ ...prev, [attachment.kind]: attachment }));
+  }
+
+  function handleLogMeal(draft: CoachMealLogDraft) {
+    const entry: MealLogEntry = { id: generateId(), date: todayIso(), ...draft };
+    setMealLog((prev) => [...prev, entry]);
+  }
+
+  function handleSaveJoint(draft: CoachJointDraft) {
+    const joint: FoodJoint = { id: generateId(), ...draft };
+    setJoints((prev) => [...prev, joint]);
+  }
+
+  function handleSaveWalkSpot(draft: CoachWalkSpotDraft) {
+    const spot: WalkSpot = { id: generateId(), ...draft };
+    setWalkSpots((prev) => [...prev, spot]);
+  }
+
+  function handleSaveOutlet(outlet: DiscoveredFoodOutlet) {
+    const joint: FoodJoint = {
+      id: generateId(),
+      name: outlet.name,
+      area: outlet.area || "",
+      cuisine: outlet.cuisine,
+      notes: outlet.snippet
+    };
+    setJoints((prev) => [...prev, joint]);
+  }
+
+  const coachState: CoachState = {
+    profile: { ...profile, ...foodProfile },
+    capturedImageKinds: Object.keys(images) as ImageKind[],
+    joints: joints.map((joint) => ({ name: joint.name, area: joint.area })),
+    walkSpots: walkSpots.map((spot) => ({ name: spot.name, area: spot.area })),
+    recentMealLog: mealLog.map((entry) => ({ date: entry.date, mealType: entry.mealType, item: entry.item })),
+    report: result?.report ?? null,
+    mealPlan: mealPlanResponse?.plan ?? null
+  };
+
   return (
     <main>
       <div className="hero">
@@ -126,12 +225,8 @@ export default function Page() {
           Capture face, body, and posture photos, log today&apos;s steps. A frontier reasoning + vision model reads the
           visual signals, a deep-agent crew of posture, body-composition, and recovery specialists dispatches
           dynamically to build a full workout routine, Nano Banana renders a form visual for every exercise, Exa
-          finds real tutorial videos and reference articles, and your coach is one message away.
-        </p>
-        <p style={{ marginTop: 4 }}>
-          <Link href="/food" style={{ color: "var(--accent)", fontSize: 13 }}>
-            Log meals &amp; plan today&apos;s orders on a budget →
-          </Link>
+          finds real tutorial videos and reference articles, and your coach is one message away — the same chat also
+          logs meals, saves joints and walk spots, and plans today&apos;s budget-aware orders.
         </p>
       </div>
 
@@ -265,7 +360,38 @@ export default function Page() {
             {error && <div className="error-box">{error}</div>}
           </div>
 
-          <ChatCoach report={result?.report ?? null} />
+          <CoachChat
+            state={coachState}
+            onProfileUpdates={handleProfileUpdates}
+            onPhotoCaptured={handlePhotoCaptured}
+            onLogMeal={handleLogMeal}
+            onSaveJoint={handleSaveJoint}
+            onSaveWalkSpot={handleSaveWalkSpot}
+            onRunAnalysis={handleAnalyze}
+            onRunMealPlan={handlePlanMeals}
+            analysisLoading={loading}
+            mealPlanLoading={mealPlanLoading}
+          />
+
+          <MealPlanCard
+            response={mealPlanResponse}
+            loading={mealPlanLoading}
+            error={mealPlanError}
+            onGenerate={handlePlanMeals}
+            onSaveOutlet={handleSaveOutlet}
+          />
+
+          <div className="card">
+            <h2>Manual food &amp; activity editing</h2>
+            <p className="muted">
+              Your coach chat above can do all of this for you — these are the same saved joints, walk spots, and meal
+              log for quick manual edits.
+            </p>
+          </div>
+
+          <JointManager joints={joints} onChange={setJoints} />
+          <WalkSpotManager walkSpots={walkSpots} onChange={setWalkSpots} />
+          <MealLogger log={mealLog} joints={joints} onChange={setMealLog} />
         </section>
 
         <section>
