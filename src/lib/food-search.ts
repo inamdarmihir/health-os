@@ -1,4 +1,5 @@
 import type { DiscoveredFoodOutlet, FoodJoint, FoodProfile, FoodSearchHit } from "./food-types";
+import type { ExerciseSuggestion, FoodSpotSuggestion } from "./coach-types";
 import { browserAutomationEnabled, snapshotUrl } from "./browser-tool";
 
 const EXA_SEARCH_URL = "https://api.exa.ai/search";
@@ -108,4 +109,60 @@ export async function discoverNewFoodOutlets(profile: FoodProfile, joints: FoodJ
       } satisfies DiscoveredFoodOutlet;
     })
   );
+}
+
+/**
+ * Enriches exercise suggestions with YouTube tutorial URLs via Exa.
+ * Gracefully skips any suggestion where Exa returns no result.
+ */
+export async function enrichExerciseSuggestions(
+  suggestions: ExerciseSuggestion[],
+): Promise<ExerciseSuggestion[]> {
+  const apiKey = process.env.EXA_API_KEY;
+  if (!apiKey || suggestions.length === 0) return suggestions;
+
+  const settled = await Promise.allSettled(
+    suggestions.map(async (s) => {
+      const response = await fetch(EXA_SEARCH_URL, {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: s.searchQuery,
+          type: "fast",
+          numResults: 1,
+          includeDomains: ["youtube.com"],
+        }),
+      });
+      if (!response.ok) return s;
+      const json = (await response.json()) as { results?: { url?: string; title?: string }[] };
+      const top = json.results?.[0];
+      return top?.url ? { ...s, videoUrl: top.url, videoTitle: top.title || s.name } : s;
+    }),
+  );
+
+  return settled.map((r, i) => (r.status === "fulfilled" ? r.value : suggestions[i]));
+}
+
+/**
+ * Enriches food spot suggestions with Swiggy/Zomato evidence via Exa.
+ * Uses the user's area if the suggestion's area is missing.
+ */
+export async function enrichFoodSpotSuggestions(
+  suggestions: FoodSpotSuggestion[],
+  fallbackArea: string,
+): Promise<FoodSpotSuggestion[]> {
+  const apiKey = process.env.EXA_API_KEY;
+  if (!apiKey || suggestions.length === 0) return suggestions;
+
+  const settled = await Promise.allSettled(
+    suggestions.map(async (s) => {
+      const area = s.area || fallbackArea;
+      const query = `${s.name} ${area} menu delivery`.trim();
+      const results = await exaSearch(apiKey, query, 2);
+      const top = results.find((r): r is ExaResult & { url: string } => Boolean(r.url));
+      return top ? { ...s, url: top.url, snippet: top.text?.slice(0, 250) } : s;
+    }),
+  );
+
+  return settled.map((r, i) => (r.status === "fulfilled" ? r.value : suggestions[i]));
 }

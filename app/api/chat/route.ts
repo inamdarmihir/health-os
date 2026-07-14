@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runCoachTurn, intelligenceConfigured } from "../../../src/lib/ai";
 import type { CoachState, CoachChatMessage } from "../../../src/lib/coach-types";
+import { enrichExerciseSuggestions, enrichFoodSpotSuggestions } from "../../../src/lib/food-search";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -65,7 +66,29 @@ export async function POST(request: Request) {
 
   try {
     const result = await runCoachTurn(parsed.data.state as CoachState, parsed.data.messages as CoachChatMessage[]);
-    return NextResponse.json(result);
+
+    // Enrich exercise and food-spot suggestions with live Exa data in parallel.
+    // Walk spots need no enrichment — they're location names, not URLs.
+    const fallbackArea =
+      parsed.data.state.profile.homeLocation ||
+      parsed.data.state.profile.city ||
+      parsed.data.state.profile.workLocation ||
+      "";
+
+    const [enrichedExercises, enrichedFoodSpots] = await Promise.all([
+      result.suggestExercises?.length
+        ? enrichExerciseSuggestions(result.suggestExercises)
+        : Promise.resolve(result.suggestExercises ?? []),
+      result.suggestFoodSpots?.length
+        ? enrichFoodSpotSuggestions(result.suggestFoodSpots, fallbackArea)
+        : Promise.resolve(result.suggestFoodSpots ?? []),
+    ]);
+
+    return NextResponse.json({
+      ...result,
+      suggestExercises: enrichedExercises,
+      suggestFoodSpots: enrichedFoodSpots,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Coach chat failed.";
     return NextResponse.json({ error: message }, { status: 502 });
